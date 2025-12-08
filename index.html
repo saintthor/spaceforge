@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.16</title>
+    <title>Solar Carnot AI Server Designer v0.9.17</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -46,7 +46,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.16...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.17...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -126,7 +126,7 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.16</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.17</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -313,18 +313,25 @@
                 });
             }
 
-            createLabelTexture(text, colorStr, width, height) {
+            createMagnetTexture(width, height) {
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#1e293b'; // Slate-800
+                ctx.fillStyle = '#1e293b'; // Slate-800 background
                 ctx.fillRect(0, 0, width, height);
+                
                 ctx.fillStyle = 'white';
                 ctx.font = `bold ${width/1.8}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(text, width/2, height/2);
+                
+                // Draw N on top (25% height)
+                ctx.fillText("N", width/2, height * 0.25);
+                
+                // Draw S on bottom (75% height)
+                ctx.fillText("S", width/2, height * 0.75);
+                
                 return new THREE.CanvasTexture(canvas);
             }
 
@@ -445,14 +452,16 @@
                 // Magnets - Slate-800
                 const magGeo = new THREE.BoxGeometry(0.4, 1.8, 0.8);
                 const matGrey = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-                const matN = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("N", "#1e293b", 128, 256) });
-                const matS = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("S", "#1e293b", 128, 256) });
+                // Use new texture for both N and S positions
+                const magTexture = this.createMagnetTexture(128, 256);
+                const matMag = new THREE.MeshStandardMaterial({ map: magTexture });
 
-                const magL = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matN, matN]);
+                // Apply to both Left and Right magnets
+                const magL = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matMag, matMag]);
                 magL.position.x = -0.95; 
                 this.pistonGroup.add(magL);
 
-                const magR = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matS, matS]);
+                const magR = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matMag, matMag]);
                 magR.position.x = 0.95;
                 this.pistonGroup.add(magR);
 
@@ -509,7 +518,7 @@
                 // Helix Coil
                 const curve = new THREE.CatmullRomCurve3([]);
                 const turns = 10; 
-                const length = 6.4;
+                const length = 3.2; // Shortened coil length (v0.9.15+)
                 for (let i = 0; i <= 100; i++) {
                     const t = i / 100;
                     const angle = t * Math.PI * 2 * turns;
@@ -521,20 +530,20 @@
                 this.scene.add(new THREE.Mesh(coilGeo, coilMat));
 
                 // Wires - Top Entry, Soft Curves
-                // Connect Coil Left Start (-3.2, 1.7, 0) to AI Top (-5.0, 1.0, 0)
+                // Connect Coil Left Start (-1.6, 1.7, 0) to AI Top (-5.0, 1.0, 0)
                 const wireLPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(-3.2, 1.7, 0),
-                    new THREE.Vector3(-3.5, 2.2, 0), // Arc up
+                    new THREE.Vector3(-1.6, 1.7, 0),
+                    new THREE.Vector3(-2.0, 2.2, 0), // Arc up
                     new THREE.Vector3(-4.5, 2.0, 0),
                     new THREE.Vector3(-5.0, 1.0, 0)  // Drop into top
                 ]);
                 const wireLGeo = new THREE.TubeGeometry(wireLPath, 32, 0.05, 8, false);
                 this.scene.add(new THREE.Mesh(wireLGeo, coilMat));
 
-                // Connect Coil Right End (3.2, 1.7, 0) to AI Top
+                // Connect Coil Right End (1.6, 1.7, 0) to AI Top
                 const wireRPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(3.2, 1.7, 0),
-                    new THREE.Vector3(3.5, 2.3, 0), // Up
+                    new THREE.Vector3(1.6, 1.7, 0),
+                    new THREE.Vector3(2.0, 2.3, 0), // Up
                     new THREE.Vector3(0, 2.3, 0),   // Across Top
                     new THREE.Vector3(-4.5, 2.3, 0),
                     new THREE.Vector3(-5.0, 1.0, 0) // Drop into top
