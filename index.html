@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.15</title>
+    <title>Solar Carnot AI Server Designer v0.9.16</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -46,7 +46,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.15...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.16...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -126,7 +126,7 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.15</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.16</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -385,32 +385,28 @@
                 const gapSize = Math.abs(surfaceY - cylOuterY);
                 const housingLen = gapSize * 0.8; 
 
-                // Thicker Glass Housing
-                const housingGeo = new THREE.CylinderGeometry(0.6, 0.6, housingLen, 16);
+                // Thicker Glass Housing Material
                 const housingMat = new THREE.MeshPhongMaterial({ 
                     color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide 
                 });
+                
+                const housingGeo = new THREE.CylinderGeometry(0.6, 0.6, housingLen, 16);
                 const housing = new THREE.Mesh(housingGeo, housingMat);
                 housing.position.set(x, housingY, -1.2);
                 this.scene.add(housing);
 
-                // Thin Segments - White Phong Material for better brightness
-                const segmentMat = new THREE.MeshPhongMaterial({ 
-                    color: 0xffffff, 
-                    shininess: 30
-                });
-
+                // Thin Segments - Use Housing Material for Reconstruction
                 // Upper Segment (Housing Top to Plate Surface)
                 const housingOuterY = isTop ? (housingY + housingLen/2) : (housingY - housingLen/2);
                 const upperDist = Math.abs(surfaceY - housingOuterY);
-                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, upperDist), segmentMat);
+                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, upperDist), housingMat);
                 seg1.position.set(x, (surfaceY + housingOuterY)/2, -1.2);
                 this.scene.add(seg1);
 
                 // Lower Segment (Housing Bottom to Deep Cylinder Inner)
                 const housingInnerY = isTop ? (housingY - housingLen/2) : (housingY + housingLen/2);
                 const lowerDist = Math.abs(innerY - housingInnerY);
-                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, lowerDist), segmentMat);
+                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, lowerDist), housingMat);
                 seg2.position.set(x, (innerY + housingInnerY)/2, -1.2);
                 this.scene.add(seg2);
 
@@ -598,11 +594,6 @@
                 this.setV(this.valves.ai, state.vAI);
 
                 // Animate Equalizer Pistons (Kinematic Sync)
-                // Left Side Pistons (Hot & Cold): Move away when piston moves Left (Neg)
-                // Right Side Pistons (Hot & Cold): Move towards when piston moves Left (Neg)
-                // Piston Range +/- 2.4. 
-                // Eq Piston Range +/- 0.25 within housing.
-                
                 const eqRange = 0.25; 
                 const normPos = state.pistonPos / 2.4; // -1 to 1
 
@@ -612,18 +603,6 @@
                 // Right Side: If Piston is Right (1), Eq Piston is Up/Out (+1)
                 const rightEqPos = normPos * eqRange;
 
-                // Update Left Hot
-                this.valves.leftHot.eqPiston.position.y = this.valves.leftHot.housingY + (leftEqPos);
-                
-                // Update Left Cold (Note: HousingY is negative, "Away" means more negative?)
-                // Actually "Away from cylinder" means towards the plate.
-                // For Hot (Top), Away = +Y. For Cold (Bottom), Away = -Y.
-                
-                // Let's refine logic:
-                // Main Piston Moves Left -> Left Gas compresses -> Pressure Rise -> Eq Piston pushed Away.
-                // So if PistonPos < 0 (Left), Left Eq Pistons move Away.
-                // Hot (Top): Y increases. Cold (Bottom): Y decreases.
-                
                 // Left Hot: housingY + (-normPos * eqRange) (If norm -1, add +range -> Up/Away)
                 this.valves.leftHot.eqPiston.position.y = this.valves.leftHot.housingY + (leftEqPos);
                 
@@ -635,7 +614,6 @@
 
                 // Right Cold: housingY - (rightEqPos)
                 this.valves.rightCold.eqPiston.position.y = this.valves.rightCold.housingY - (rightEqPos);
-
 
                 this.renderer.render(this.scene, this.camera);
                 this.updateUI(state);
