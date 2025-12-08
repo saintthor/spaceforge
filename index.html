@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solar Carnot AI Server Designer v0.9.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Polyfill for process.env in browser environment to prevent ReferenceErrors
+        window.process = { env: { API_KEY: '' } };
+    </script>
     <script type="importmap">
         {
             "imports": {
@@ -397,7 +401,7 @@
                 this.valves.leftCold = this.createPlate(-3.5, -3.0, 4.0, 3.0, 0x3b82f6);
                 this.valves.rightCold = this.createPlate(3.5, -3.0, 4.0, 3.0, 0x3b82f6);
 
-                // AI Unit
+                // AI Unit - Smaller width (0.5)
                 const aiMat = new THREE.MeshStandardMaterial({ color: 0x2f4f4f, roughness: 0.4, metalness: 0.7 });
                 const aiBox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.0, 2.0), aiMat);
                 aiBox.position.set(-5.0, 0, 0);
@@ -426,24 +430,26 @@
                 this.scene.add(new THREE.Mesh(coilGeo, coilMat));
 
                 // Wires (Soft Curves & Thick)
-                // Connect Coil Left Start (-3.2, 1.7, 0) to AI pipe (-4.5, 0, 0)
+                // Connect Coil Left Start (-3.2, 1.7, 0) to AI module TOP (-5.0, 1.0, 0)
+                // Avoid cylinder r=1.6
                 const wireLPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(-3.2, 1.7, 0),
-                    new THREE.Vector3(-3.5, 1.7, 0),
-                    new THREE.Vector3(-4.0, 0.8, 0),
-                    new THREE.Vector3(-4.2, 0, 0)
+                    new THREE.Vector3(-3.2, 1.7, 0.1),
+                    new THREE.Vector3(-4.0, 2.0, 0.1), // Up and over
+                    new THREE.Vector3(-5.0, 1.5, 0.1),
+                    new THREE.Vector3(-5.0, 1.0, 0.1)  // Top entry
                 ]);
-                const wireLGeo = new THREE.TubeGeometry(wireLPath, 20, 0.05, 8, false);
+                const wireLGeo = new THREE.TubeGeometry(wireLPath, 32, 0.05, 8, false);
                 this.scene.add(new THREE.Mesh(wireLGeo, coilMat));
 
-                // Connect Coil Right End (3.2, 1.7, 0) to AI pipe
+                // Connect Coil Right End (3.2, 1.7, 0) to AI module TOP
+                // Go across the top of the engine
                 const wireRPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(3.2, 1.7, 0),
-                    new THREE.Vector3(3.5, 1.7, 0),
-                    new THREE.Vector3(3.5, 2.2, 0), // Up
-                    new THREE.Vector3(0, 2.2, 0),   // Across top
-                    new THREE.Vector3(-4.0, 2.2, 0),
-                    new THREE.Vector3(-4.2, 0.5, 0)
+                    new THREE.Vector3(3.2, 1.7, -0.1),
+                    new THREE.Vector3(3.8, 2.0, -0.1), // Out right
+                    new THREE.Vector3(0, 2.3, -0.1),   // High across center
+                    new THREE.Vector3(-4.5, 2.0, -0.1), // Approach AI
+                    new THREE.Vector3(-5.0, 1.5, -0.1),
+                    new THREE.Vector3(-5.0, 1.0, -0.1) // Top entry
                 ]);
                 const wireRGeo = new THREE.TubeGeometry(wireRPath, 64, 0.05, 8, false);
                 this.scene.add(new THREE.Mesh(wireRGeo, coilMat));
