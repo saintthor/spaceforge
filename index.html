@@ -3,12 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.8</title>
+    <title>Solar Carnot AI Server Designer v0.9.9</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Polyfill for process.env in browser environment
-        window.process = { env: { API_KEY: '' } };
-    </script>
     <script type="importmap">
         {
             "imports": {
@@ -46,7 +42,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.8...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.9...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -124,7 +120,7 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.8</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.9</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -272,7 +268,6 @@
                 
                 this.initLights();
                 this.initMeshes();
-                this.addSunArrows();
                 this.animate();
 
                 window.addEventListener('resize', () => this.onResize());
@@ -282,28 +277,18 @@
                 const ambient = new THREE.AmbientLight(0xffffff, 0.7);
                 this.scene.add(ambient);
 
+                // Vertical Sunlight for accurate shadows
                 const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-                sunLight.position.set(5, 12, 5);
+                sunLight.position.set(0, 20, 0); // Directly overhead
                 sunLight.castShadow = true;
+                // Expand shadow camera to cover full engine width
+                sunLight.shadow.camera.left = -10;
+                sunLight.shadow.camera.right = 10;
+                sunLight.shadow.camera.top = 10;
+                sunLight.shadow.camera.bottom = -10;
                 sunLight.shadow.mapSize.width = 2048;
                 sunLight.shadow.mapSize.height = 2048;
                 this.scene.add(sunLight);
-            }
-
-            addSunArrows() {
-                const dir = new THREE.Vector3(0, -1, 0);
-                const col = 0xffff00; // Yellow
-                const yStart = 6.0;
-                const len = 2.0;
-                
-                // Arrows showing sunlight direction on Hot Plates
-                const xPositions = [-5, -3.5, -2, 2, 3.5, 5];
-                
-                xPositions.forEach(x => {
-                    const origin = new THREE.Vector3(x, yStart, 0);
-                    const arrow = new THREE.ArrowHelper(dir, origin, len, col, 0.6, 0.4);
-                    this.scene.add(arrow);
-                });
             }
 
             createLabelTexture(text, colorStr, width, height) {
@@ -311,7 +296,7 @@
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#64748b';
+                ctx.fillStyle = colorStr; // Use the magnet color for bg
                 ctx.fillRect(0, 0, width, height);
                 ctx.fillStyle = 'white';
                 ctx.font = `bold ${width/1.8}px Arial`;
@@ -321,16 +306,70 @@
                 return new THREE.CanvasTexture(canvas);
             }
 
+            // Creates a Black Strip Layer (Absorber or Radiator coating)
+            createBlackLayer(y, width, depth, isTop) {
+                const height = 0.05;
+                const mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+                const layer = new THREE.Mesh(new THREE.BoxGeometry(width * 0.95, height, depth * 0.95), mat);
+                // Position slightly offset from the plate Y to sit on top or bottom
+                const offset = isTop ? (0.16 + height/2) : -(0.16 + height/2);
+                layer.position.set(0, y + offset, 0);
+                this.scene.add(layer);
+            }
+
+            addSunArrows() {
+                const group = new THREE.Group();
+                const arrowLen = 1.5;
+                const arrowCol = 0xffaa00;
+                
+                // Add arrows above the hot plates
+                [-3.5, 3.5].forEach(x => {
+                    for(let z=-2; z<=2; z+=2) {
+                        const arrow = new THREE.ArrowHelper(
+                            new THREE.Vector3(0, -1, 0),
+                            new THREE.Vector3(x, 6, z),
+                            arrowLen,
+                            arrowCol,
+                            0.4,
+                            0.3
+                        );
+                        group.add(arrow);
+                    }
+                });
+                this.scene.add(group);
+            }
+
             createPlate(x, y, width, depth, color) {
+                // Red or Blue base plate
+                const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 });
                 const boxH = 0.32; 
-                // Standard Hot/Cold plate (Red/Blue)
-                const plateMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 });
-                const plate = new THREE.Mesh(new THREE.BoxGeometry(width, boxH, depth), plateMat);
+                
+                const plate = new THREE.Mesh(new THREE.BoxGeometry(width, boxH, depth), mat);
                 plate.position.set(x, y, 0);
                 plate.castShadow = true;
                 plate.receiveShadow = true;
                 this.scene.add(plate);
 
+                // Add Black Layer
+                // Hot Plate (y > 0): Black layer on Top
+                // Cold Plate (y < 0): Black layer on Bottom
+                if (y > 0) {
+                    const blackLayer = new THREE.Mesh(
+                        new THREE.BoxGeometry(width, 0.05, depth), 
+                        new THREE.MeshStandardMaterial({ color: 0x111111 })
+                    );
+                    blackLayer.position.set(x, y + 0.16 + 0.025, 0);
+                    this.scene.add(blackLayer);
+                } else {
+                    const blackLayer = new THREE.Mesh(
+                        new THREE.BoxGeometry(width, 0.05, depth), 
+                        new THREE.MeshStandardMaterial({ color: 0x111111 })
+                    );
+                    blackLayer.position.set(x, y - 0.16 - 0.025, 0);
+                    this.scene.add(blackLayer);
+                }
+
+                // Connecting Pipe
                 const isTop = y > 0;
                 const surfaceY = isTop ? (y - boxH/2) : (y + boxH/2);
                 const cylSurfaceY = isTop ? 1.6 : -1.6;
@@ -346,33 +385,14 @@
                 return { plate, pipe, valve: null };
             }
 
-            createAbsorber(x, y, width, depth) {
-                // Creates a Black Stripe directly on top of the Hot Plate
-                const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.1 });
-                
-                // Stripe Dimensions: Full Width of Plate, Height 0.05
-                const hStripe = 0.05;
-                const stripeGeo = new THREE.BoxGeometry(width, hStripe, depth);
-                const stripe = new THREE.Mesh(stripeGeo, matBlack);
-                
-                // Position: Y = Hot Plate Center (3.0) + Half Plate Height (0.16) + Half Stripe Height (0.025)
-                // y argument passed here is 3.36 (from prev logic), but we need to calculate based on plate
-                // The passed 'y' was originally center of composite. 
-                // We know Hot Plate is at y=3.0, h=0.32. Top is 3.16.
-                stripe.position.set(x, 3.16 + (hStripe / 2), 0);
-                stripe.castShadow = true;
-                
-                this.scene.add(stripe);
-            }
-
             initMeshes() {
-                // Glass Cylinder
+                // Glass Cylinder - High transparency for gas visibility
                 const glassMat = new THREE.MeshPhongMaterial({ 
                     color: 0xffffff, 
                     transparent: true, 
-                    opacity: 0.15, 
+                    opacity: 0.15, // Low opacity
                     shininess: 100,
-                    depthWrite: false, 
+                    depthWrite: false, // Important for inner gas visibility
                     side: THREE.DoubleSide
                 });
                 const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 8.0, 32), glassMat);
@@ -389,9 +409,13 @@
 
                 // Magnets
                 const magGeo = new THREE.BoxGeometry(0.4, 1.8, 0.8);
-                const matGrey = new THREE.MeshStandardMaterial({ color: 0x64748b });
-                const matN = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("N", "#64748b", 128, 256) });
-                const matS = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("S", "#64748b", 128, 256) });
+                // Standard Steel Grey for magnets
+                const greyHex = 0x64748b;
+                const greyStr = "#64748b";
+                
+                const matGrey = new THREE.MeshStandardMaterial({ color: greyHex });
+                const matN = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("N", greyStr, 128, 256) });
+                const matS = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("S", greyStr, 128, 256) });
 
                 const magL = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matN, matN]);
                 magL.position.x = -0.95; 
@@ -403,8 +427,9 @@
 
                 this.scene.add(this.pistonGroup);
 
-                // Gas Volumes
+                // Gas Volumes - Using Emissive Standard Material for visibility inside glass
                 const gasGeo = new THREE.CylinderGeometry(1.52, 1.52, 1, 32);
+                
                 const gasLMat = new THREE.MeshStandardMaterial({ 
                     color: 0xffffff, 
                     emissive: 0xff0000,
@@ -429,18 +454,16 @@
                 this.gasR.rotation.z = Math.PI / 2;
                 this.scene.add(this.gasR);
 
-                // Valves
+                // Valves & Plates
                 this.valves = {};
                 this.valves.leftHot = this.createPlate(-3.5, 3.0, 6.5, 6.0, 0xef4444); 
                 this.valves.rightHot = this.createPlate(3.5, 3.0, 6.5, 6.0, 0xef4444);
                 this.valves.leftCold = this.createPlate(-3.5, -3.0, 4.0, 3.0, 0x3b82f6);
                 this.valves.rightCold = this.createPlate(3.5, -3.0, 4.0, 3.0, 0x3b82f6);
+                
+                this.addSunArrows();
 
-                // Sun Absorbers: Black Stripe directly on Hot Plate (removing Brown Body)
-                this.createAbsorber(-3.5, 3.36, 6.5, 6.0);
-                this.createAbsorber(3.5, 3.36, 6.5, 6.0);
-
-                // AI Unit
+                // AI Unit - Thin
                 const aiMat = new THREE.MeshStandardMaterial({ color: 0x2f4f4f, roughness: 0.4, metalness: 0.7 });
                 const aiBox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.0, 2.0), aiMat);
                 aiBox.position.set(-5.0, 0, 0);
@@ -468,23 +491,24 @@
                 const coilMat = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8, roughness: 0.2 });
                 this.scene.add(new THREE.Mesh(coilGeo, coilMat));
 
-                // Wires (Top Entry)
+                // Wires (Soft Curves & Thick)
+                // Connect Coil Left Start (-3.2, 1.7, 0) to AI Unit Top (-5.0, 1.0, 0)
                 const wireLPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(-3.2, 1.7, 0.1),
-                    new THREE.Vector3(-4.0, 2.0, 0.1), 
-                    new THREE.Vector3(-5.0, 1.5, 0.1),
-                    new THREE.Vector3(-5.0, 1.0, 0.1)  
+                    new THREE.Vector3(-3.2, 1.7, 0),
+                    new THREE.Vector3(-3.5, 2.0, 0), // Arc up
+                    new THREE.Vector3(-4.5, 2.0, 0),
+                    new THREE.Vector3(-5.0, 1.0, 0)  // Drop into AI top
                 ]);
                 const wireLGeo = new THREE.TubeGeometry(wireLPath, 32, 0.05, 8, false);
                 this.scene.add(new THREE.Mesh(wireLGeo, coilMat));
 
+                // Connect Coil Right End (3.2, 1.7, 0) to AI Unit Top
                 const wireRPath = new THREE.CatmullRomCurve3([
-                    new THREE.Vector3(3.2, 1.7, -0.1),
-                    new THREE.Vector3(3.8, 2.0, -0.1), 
-                    new THREE.Vector3(0, 2.3, -0.1),   
-                    new THREE.Vector3(-4.5, 2.0, -0.1), 
-                    new THREE.Vector3(-5.0, 1.5, -0.1),
-                    new THREE.Vector3(-5.0, 1.0, -0.1) 
+                    new THREE.Vector3(3.2, 1.7, 0),
+                    new THREE.Vector3(3.5, 2.3, 0), // Up
+                    new THREE.Vector3(0, 2.3, 0),   // Across top cylinder, below heat plates
+                    new THREE.Vector3(-4.5, 2.3, 0),
+                    new THREE.Vector3(-5.0, 1.0, 0)  // Drop into AI top
                 ]);
                 const wireRGeo = new THREE.TubeGeometry(wireRPath, 64, 0.05, 8, false);
                 this.scene.add(new THREE.Mesh(wireRGeo, coilMat));
@@ -503,6 +527,7 @@
             }
 
             updateColor(mesh, ratio) {
+                // 0 = Blue, 1 = Red
                 const c1 = new THREE.Color(0x3b82f6);
                 const c2 = new THREE.Color(0xef4444);
                 mesh.material.emissive.lerpColors(c1, c2, ratio);
@@ -510,12 +535,14 @@
 
             animate() {
                 requestAnimationFrame(() => this.animate());
+                
                 const dt = 0.016;
                 const state = this.physics.update(dt);
 
                 this.pistonGroup.position.x = state.pistonPos;
-                this.controls.update(); 
+                this.controls.update(); // Update OrbitControls
 
+                // Gas Dynamics
                 const pistonLeftFace = state.pistonPos - 0.75; 
                 const lenL = Math.max(0.01, pistonLeftFace - (-4.0));
                 this.gasL.scale.y = lenL;
@@ -526,9 +553,11 @@
                 this.gasR.scale.y = lenR;
                 this.gasR.position.x = 4.0 - (lenR / 2);
 
+                // Colors
                 this.updateColor(this.gasL, state.colorL);
                 this.updateColor(this.gasR, state.colorR);
 
+                // Valves
                 this.setV(this.valves.leftHot, state.vLeftHot);
                 this.setV(this.valves.leftCold, state.vLeftCold);
                 this.setV(this.valves.rightHot, state.vRightHot);
@@ -558,6 +587,7 @@
             const visualizer = new EngineVisualizer('canvas-container');
             document.getElementById('loading').style.display = 'none';
 
+            // Events
             ['slider-hot', 'slider-cold', 'slider-speed'].forEach(id => {
                 const el = document.getElementById(id);
                 el.addEventListener('input', (e) => {
@@ -575,12 +605,14 @@
                 });
             });
 
+            // Chat Toggle
             const chatHeader = document.getElementById('chat-header');
             const chatToggleBtn = document.getElementById('chat-toggle');
             const chatContent = document.getElementById('chat-content');
             
             function toggleChat() {
                 chatContent.classList.toggle('hidden');
+                // Change icon
                 const isHidden = chatContent.classList.contains('hidden');
                 chatToggleBtn.innerHTML = isHidden 
                     ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>'
@@ -589,6 +621,7 @@
 
             chatHeader.addEventListener('click', toggleChat);
 
+            // Chat Send
             const chatInput = document.getElementById('chat-input');
             const sendBtn = document.getElementById('send-btn');
             const history = document.getElementById('chat-history');
