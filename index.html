@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.17</title>
+    <title>Solar Carnot AI Server Designer v0.9.18</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -46,7 +46,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.17...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.18...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -126,12 +126,12 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.17</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.18</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
-                        <span>Phase</span>
-                        <span id="phase-val" class="font-bold text-blue-600">--</span>
+                        <span>Phase (L / R)</span>
+                        <span id="phase-val" class="font-bold text-xs text-right">--</span>
                     </div>
                     <div class="flex justify-between">
                         <span>Velocity</span>
@@ -173,6 +173,8 @@
                 this.state = {
                     pistonPos: 0, // -2.4 to 2.4
                     cyclePos: 0,  // 0 to 4 (Phase)
+                    velocity: 0,
+                    power: 0,
                     
                     // Valves
                     vLeftHot: false,
@@ -182,7 +184,7 @@
                     vAI: false, // AI Connection
                     
                     // Phases for UI
-                    phase: 'Initialization',
+                    phaseHTML: 'Initialization',
                     
                     // Visual Colors
                     colorL: 0, // 0=Blue/Green, 1=Red
@@ -196,13 +198,27 @@
                 this.state.cyclePos = cycleT;
 
                 // Piston Position: Cosine wave
+                // Pos = -2.4 * cos(wt)
                 const normPos = -Math.cos(cycleT * Math.PI / 2); 
                 this.state.pistonPos = normPos * 2.4;
+                
+                // Velocity is proportional to sine of cycle * speed
+                // Max velocity approx 5 m/s at speed 1.0 for visualization
+                this.state.velocity = Math.abs(Math.sin(cycleT * Math.PI / 2)) * this.speed * 5.0;
+
+                // Power Calculation
+                // Power = K * (Th - Tc) * Speed * Efficiency
+                const efficiency = 1 - (this.sinkTemp / this.sourceTemp);
+                const deltaT = this.sourceTemp - this.sinkTemp;
+                // K=0.05 is a scaling factor to get reasonable kW numbers (e.g., 20-30 kW)
+                this.state.power = deltaT * this.speed * efficiency * 0.05;
 
                 // 4 Phases Logic
                 if (cycleT < 1.0) {
                     // Phase 1: Expansion (Left Heating, Right Cooling)
-                    this.state.phase = "Isothermal Exp.";
+                    // Left: Isothermal Expansion (Red)
+                    // Right: Isothermal Compression (Blue)
+                    this.state.phaseHTML = '<span class="text-red-600">L:Iso-Exp</span> / <span class="text-blue-600">R:Iso-Comp</span>';
                     this.state.vLeftHot = true; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = true;
                     this.state.colorL = 1.0; // Red
@@ -210,7 +226,9 @@
                 } 
                 else if (cycleT < 2.0) {
                     // Phase 2: Adiabatic Expansion
-                    this.state.phase = "Adiabatic Exp.";
+                    // Left: Adiabatic Exp (Red->Blue)
+                    // Right: Adiabatic Comp (Blue->Red)
+                    this.state.phaseHTML = 'L:Adia-Exp / R:Adia-Comp';
                     this.state.vLeftHot = false; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = false;
                     const p = cycleT - 1.0;
@@ -219,7 +237,9 @@
                 }
                 else if (cycleT < 3.0) {
                     // Phase 3: Isothermal Compression (Left Cooling, Right Heating)
-                    this.state.phase = "Isothermal Comp.";
+                    // Left: Iso-Comp (Blue)
+                    // Right: Iso-Exp (Red)
+                    this.state.phaseHTML = '<span class="text-blue-600">L:Iso-Comp</span> / <span class="text-red-600">R:Iso-Exp</span>';
                     this.state.vLeftHot = false; this.state.vLeftCold = true;
                     this.state.vRightHot = true; this.state.vRightCold = false;
                     this.state.colorL = 0.0; // Blue
@@ -227,7 +247,9 @@
                 }
                 else {
                     // Phase 4: Adiabatic Compression
-                    this.state.phase = "Adiabatic Comp.";
+                    // Left: Adia-Comp (Blue->Red)
+                    // Right: Adia-Exp (Red->Blue)
+                    this.state.phaseHTML = 'L:Adia-Comp / R:Adia-Exp';
                     this.state.vLeftHot = false; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = false;
                     const p = cycleT - 3.0;
@@ -629,9 +651,10 @@
             }
 
             updateUI(state) {
-                document.getElementById('phase-val').innerText = state.phase;
-                const vel = Math.abs(Math.sin(state.cyclePos * Math.PI/2)).toFixed(1);
-                document.getElementById('velocity-val').innerText = `${vel} m/s`;
+                document.getElementById('phase-val').innerHTML = state.phaseHTML;
+                document.getElementById('velocity-val').innerText = `${state.velocity.toFixed(1)} m/s`;
+                document.getElementById('power-val').innerText = `${state.power.toFixed(1)} kW`;
+                
                 const eff = (1 - (this.physics.sinkTemp / this.physics.sourceTemp)) * 100;
                 document.getElementById('efficiency-val').innerText = `${eff.toFixed(1)}%`;
             }
