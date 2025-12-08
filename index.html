@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.16</title>
+    <title>Solar Carnot AI Server Designer v0.9.14</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -23,6 +23,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             color: #1e293b;
             transition: opacity 0.3s;
+            pointer-events: auto; /* Allow clicks on panel */
         }
         .panel:hover { opacity: 1; }
         .btn-primary {
@@ -37,12 +38,15 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Utility */
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.16...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.14...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -53,13 +57,13 @@
     <div class="absolute top-0 left-0 w-full h-full pointer-events-none p-2 flex flex-col justify-between">
         
         <!-- Top Row -->
-        <div class="flex justify-end items-start pointer-events-none w-full">
+        <div class="flex justify-end items-start w-full">
             <!-- Chat Interface (Top Right) -->
-            <div id="chat-panel" class="panel pointer-events-auto p-0 rounded-lg w-72 flex flex-col origin-top-right transform scale-90 transition-all">
+            <div id="chat-panel" class="panel p-0 rounded-lg w-72 flex flex-col origin-top-right transform scale-90 transition-all">
                 <div class="p-2 border-b border-slate-200 bg-slate-50 flex justify-between items-center cursor-pointer" id="chat-header">
                     <span class="font-bold text-xs">Gemini Engineer</span>
                     <button id="chat-toggle" class="text-slate-500 hover:text-slate-800 focus:outline-none">
-                        <!-- Default to Expand Icon (since collapsed by default) -->
+                        <!-- Default Icon: Expand (since hidden by default) -->
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
                     </button>
                 </div>
@@ -84,9 +88,9 @@
         </div>
 
         <!-- Bottom Row -->
-        <div class="flex justify-between items-end pointer-events-none w-full">
+        <div class="flex justify-between items-end w-full">
             <!-- Control Panel (Bottom Left) -->
-            <div class="panel pointer-events-auto p-3 rounded-lg w-64 origin-bottom-left transform scale-90">
+            <div class="panel p-3 rounded-lg w-64 origin-bottom-left transform scale-90">
                 <h3 class="font-bold text-xs mb-2 text-slate-700">Controls</h3>
                 
                 <div class="space-y-3">
@@ -120,9 +124,9 @@
             </div>
 
             <!-- Server Stats (Bottom Right) -->
-            <div class="panel pointer-events-auto p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
+            <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.16</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.14</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -148,7 +152,6 @@
                     <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-red-500"></div>Hot Gas</div>
                     <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-blue-500"></div>Cold Gas</div>
                     <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-500"></div>Valve Open</div>
-                    <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-slate-800"></div>Free Piston</div>
                 </div>
             </div>
         </div>
@@ -170,88 +173,70 @@
                 this.state = {
                     pistonPos: 0, // -2.4 to 2.4
                     cyclePos: 0,  // 0 to 4 (Phase)
-                    pressureL: 100, // Normalized Pressure
-                    pressureR: 100,
                     
                     // Valves
                     vLeftHot: false,
                     vLeftCold: false,
                     vRightHot: false,
                     vRightCold: false,
-                    vAI: false,
+                    vAI: false, // AI Connection
                     
+                    // Phases for UI
                     phase: 'Initialization',
                     
-                    colorL: 0, 
+                    // Visual Colors
+                    colorL: 0, // 0=Blue/Green, 1=Red
                     colorR: 0
                 };
             }
 
             update(dt) {
                 this.time += dt * this.speed;
-                const cycleT = (this.time % 4); 
+                const cycleT = (this.time % 4); // 0 to 4
                 this.state.cyclePos = cycleT;
 
                 // Piston Position: Cosine wave
-                // Left Max Volume at pos = +2.4, Min Volume at pos = -2.4
                 const normPos = -Math.cos(cycleT * Math.PI / 2); 
                 this.state.pistonPos = normPos * 2.4;
 
-                // Approx Volume (Arbitrary units relative to displacement)
-                const volL = 2.5 + this.state.pistonPos; // Range ~0.1 to 4.9
-                const volR = 2.5 - this.state.pistonPos;
-
-                // Approximate Temperature & Pressure simulation
-                let tempL = 300, tempR = 300;
-                // Transition phase for temp (linear approx)
-                const p = cycleT % 1;
-
+                // 4 Phases Logic
                 if (cycleT < 1.0) {
-                    // Phase 1: Isothermal Exp (L=Hot, R=Cold)
+                    // Phase 1: Expansion (Left Heating, Right Cooling)
                     this.state.phase = "Isothermal Exp.";
                     this.state.vLeftHot = true; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = true;
-                    this.state.colorL = 1.0; this.state.colorR = 0.0;
-                    tempL = this.sourceTemp; 
-                    tempR = this.sinkTemp;
+                    this.state.colorL = 1.0; // Red
+                    this.state.colorR = 0.0; // Blue
                 } 
                 else if (cycleT < 2.0) {
-                    // Phase 2: Adiabatic Exp
+                    // Phase 2: Adiabatic Expansion
                     this.state.phase = "Adiabatic Exp.";
                     this.state.vLeftHot = false; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = false;
-                    this.state.colorL = 1.0 - p; this.state.colorR = p;
-                    // L cools down, R heats up
-                    tempL = this.sourceTemp - (this.sourceTemp - this.sinkTemp) * p;
-                    tempR = this.sinkTemp + (this.sourceTemp - this.sinkTemp) * p;
+                    const p = cycleT - 1.0;
+                    this.state.colorL = 1.0 - p; // Red -> Blue
+                    this.state.colorR = p;       // Blue -> Red
                 }
                 else if (cycleT < 3.0) {
-                    // Phase 3: Isothermal Comp (L=Cold, R=Hot)
+                    // Phase 3: Isothermal Compression (Left Cooling, Right Heating)
                     this.state.phase = "Isothermal Comp.";
                     this.state.vLeftHot = false; this.state.vLeftCold = true;
                     this.state.vRightHot = true; this.state.vRightCold = false;
-                    this.state.colorL = 0.0; this.state.colorR = 1.0;
-                    tempL = this.sinkTemp;
-                    tempR = this.sourceTemp;
+                    this.state.colorL = 0.0; // Blue
+                    this.state.colorR = 1.0; // Red
                 }
                 else {
-                    // Phase 4: Adiabatic Comp
+                    // Phase 4: Adiabatic Compression
                     this.state.phase = "Adiabatic Comp.";
                     this.state.vLeftHot = false; this.state.vLeftCold = false;
                     this.state.vRightHot = false; this.state.vRightCold = false;
-                    this.state.colorL = p; this.state.colorR = 1.0 - p;
-                    // L heats up, R cools down
-                    tempL = this.sinkTemp + (this.sourceTemp - this.sinkTemp) * p;
-                    tempR = this.sourceTemp - (this.sourceTemp - this.sinkTemp) * p;
+                    const p = cycleT - 3.0;
+                    this.state.colorL = p;       // Blue -> Red
+                    this.state.colorR = 1.0 - p; // Red -> Blue
                 }
 
-                // AI Valve
+                // AI Valve: Open from 1.2 to 2.8
                 this.state.vAI = (cycleT > 1.2 && cycleT < 2.8);
-
-                // Simple Gas Law P = T/V * constant
-                // Normalized to look good in visualization
-                this.state.pressureL = (tempL / volL) * 0.5;
-                this.state.pressureR = (tempR / volR) * 0.5;
 
                 return this.state;
             }
@@ -294,9 +279,11 @@
                 const ambient = new THREE.AmbientLight(0xffffff, 0.7);
                 this.scene.add(ambient);
 
-                const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-                sunLight.position.set(0, 20, 0); 
+                // Top-down Directional Light for Vertical Shadows
+                const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                sunLight.position.set(0, 20, 0); // Vertical
                 sunLight.castShadow = true;
+                // Expand shadow camera to cover all plates
                 sunLight.shadow.camera.left = -10;
                 sunLight.shadow.camera.right = 10;
                 sunLight.shadow.camera.top = 10;
@@ -304,6 +291,26 @@
                 sunLight.shadow.mapSize.width = 2048;
                 sunLight.shadow.mapSize.height = 2048;
                 this.scene.add(sunLight);
+                
+                this.addSunArrows();
+            }
+
+            addSunArrows() {
+                const arrowColor = 0xffff00;
+                const arrowLen = 1.5;
+                const positions = [-5, -2, 2, 5]; // Above Hot Plates (centered at +/- 3.5, width 6.5)
+                
+                positions.forEach(x => {
+                    const arrowHelper = new THREE.ArrowHelper(
+                        new THREE.Vector3(0, -1, 0),
+                        new THREE.Vector3(x, 8, 0),
+                        arrowLen,
+                        arrowColor,
+                        0.5,
+                        0.3
+                    );
+                    this.scene.add(arrowHelper);
+                });
             }
 
             createLabelTexture(text, colorStr, width, height) {
@@ -311,7 +318,7 @@
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = colorStr;
+                ctx.fillStyle = '#1e293b'; // Slate-800
                 ctx.fillRect(0, 0, width, height);
                 ctx.fillStyle = 'white';
                 ctx.font = `bold ${width/1.8}px Arial`;
@@ -321,24 +328,14 @@
                 return new THREE.CanvasTexture(canvas);
             }
 
-            addSunArrows() {
-                const group = new THREE.Group();
-                const arrowLen = 1.5;
-                const arrowCol = 0xffaa00;
-                [-3.5, 3.5].forEach(x => {
-                    for(let z=-2; z<=2; z+=2) {
-                        const arrow = new THREE.ArrowHelper(
-                            new THREE.Vector3(0, -1, 0),
-                            new THREE.Vector3(x, 6, z),
-                            arrowLen,
-                            arrowCol,
-                            0.4,
-                            0.3
-                        );
-                        group.add(arrow);
-                    }
-                });
-                this.scene.add(group);
+            createBlackLayer(x, y, width, depth) {
+                // Creates a thin black layer at Y
+                const layer = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, 0.05, depth),
+                    new THREE.MeshStandardMaterial({ color: 0x111111 })
+                );
+                layer.position.set(x, y, 0);
+                this.scene.add(layer);
             }
 
             createPlate(x, y, width, depth, color) {
@@ -353,19 +350,13 @@
 
                 // Black Layers
                 if (y > 0) {
-                    const blackLayer = new THREE.Mesh(
-                        new THREE.BoxGeometry(width, 0.05, depth), 
-                        new THREE.MeshStandardMaterial({ color: 0x111111 })
-                    );
-                    blackLayer.position.set(x, y + 0.16 + 0.025, 0);
-                    this.scene.add(blackLayer);
+                    // Hot Plate: Black on Top
+                    const topY = y + boxH/2 + 0.025;
+                    this.createBlackLayer(x, topY, width, depth);
                 } else {
-                    const blackLayer = new THREE.Mesh(
-                        new THREE.BoxGeometry(width, 0.05, depth), 
-                        new THREE.MeshStandardMaterial({ color: 0x111111 })
-                    );
-                    blackLayer.position.set(x, y - 0.16 - 0.025, 0);
-                    this.scene.add(blackLayer);
+                    // Cold Plate: Black on Bottom
+                    const botY = y - boxH/2 - 0.025;
+                    this.createBlackLayer(x, botY, width, depth);
                 }
 
                 const isTop = y > 0;
@@ -378,17 +369,17 @@
                 const pipeY = (surfaceY + innerY) / 2;
 
                 const greyHex = 0x94a3b8;
-                // Changed lightHex to White
-                const lightHex = 0xffffff; 
                 
-                // --- 1. Main Gas Pipe (Shifted Z = -1.2) ---
+                // --- 1. Main Gas Pipe (Vent Pipe) ---
+                // MOVED TO Z = 1.2 (Front) per user request
                 const pipeMat = new THREE.MeshStandardMaterial({ color: greyHex });
                 const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, pipeLen), pipeMat);
-                pipe.position.set(x, pipeY, -1.2);
+                pipe.position.set(x, pipeY, 1.2);
                 pipe.userData.baseColor = greyHex; 
                 this.scene.add(pipe);
 
-                // --- 2. Equalizer Pipe Assembly (Shifted Z = +1.2) ---
+                // --- 2. Equalizer Pipe Assembly ---
+                // MOVED TO Z = -1.2 (Back) per user request
                 const cylOuterY = isTop ? 1.6 : -1.6;
                 const housingY = (surfaceY + cylOuterY) / 2; 
                 const gapSize = Math.abs(surfaceY - cylOuterY);
@@ -400,61 +391,66 @@
                     color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide 
                 });
                 const housing = new THREE.Mesh(housingGeo, housingMat);
-                housing.position.set(x, housingY, 1.2);
+                housing.position.set(x, housingY, -1.2);
                 this.scene.add(housing);
 
-                // Thin Segments - NOW WHITE COLORED
-                const segmentMat = new THREE.MeshStandardMaterial({ color: lightHex, roughness: 0.1, metalness: 0.1 });
+                // Thin Segments - White Phong Material for better brightness
+                const segmentMat = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff, 
+                    shininess: 30
+                });
 
                 // Upper Segment (Housing Top to Plate Surface)
                 const housingOuterY = isTop ? (housingY + housingLen/2) : (housingY - housingLen/2);
                 const upperDist = Math.abs(surfaceY - housingOuterY);
                 const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, upperDist), segmentMat);
-                seg1.position.set(x, (surfaceY + housingOuterY)/2, 1.2);
+                seg1.position.set(x, (surfaceY + housingOuterY)/2, -1.2);
                 this.scene.add(seg1);
 
                 // Lower Segment (Housing Bottom to Deep Cylinder Inner)
                 const housingInnerY = isTop ? (housingY - housingLen/2) : (housingY + housingLen/2);
                 const lowerDist = Math.abs(innerY - housingInnerY);
                 const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, lowerDist), segmentMat);
-                seg2.position.set(x, (innerY + housingInnerY)/2, 1.2);
+                seg2.position.set(x, (innerY + housingInnerY)/2, -1.2);
                 this.scene.add(seg2);
 
                 // Free Piston inside Housing
                 const pistonGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.15, 16);
                 const pistonMat = new THREE.MeshStandardMaterial({ color: 0x1e293b }); 
                 const eqPiston = new THREE.Mesh(pistonGeo, pistonMat);
-                eqPiston.position.set(x, housingY, 1.2); // Start at Housing Center
+                eqPiston.position.set(x, housingY, -1.2); // Start at Housing Center
                 this.scene.add(eqPiston);
 
                 return { plate, pipe, eqPiston, housingLen, housingY, isTop, isLeft: x < 0 };
             }
 
             initMeshes() {
-                // Main Cylinder
+                // Glass Cylinder
                 const glassMat = new THREE.MeshPhongMaterial({ 
-                    color: 0xffffff, transparent: true, opacity: 0.15, 
-                    shininess: 100, depthWrite: false, side: THREE.DoubleSide
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: 0.15, 
+                    shininess: 100,
+                    depthWrite: false, 
+                    side: THREE.DoubleSide
                 });
                 const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 8.0, 32), glassMat);
                 cylinder.rotation.z = Math.PI / 2;
                 cylinder.receiveShadow = true;
                 this.scene.add(cylinder);
 
-                // Main Piston
+                // Piston
                 this.pistonGroup = new THREE.Group();
                 const pistonMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.8 });
                 const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.5, 32), pistonMat);
                 body.rotation.z = Math.PI / 2;
                 this.pistonGroup.add(body);
 
-                // Magnets
+                // Magnets - Slate-800
                 const magGeo = new THREE.BoxGeometry(0.4, 1.8, 0.8);
-                const greyHex = 0x1e293b; 
-                const greyStr = "#1e293b";
-                const matGrey = new THREE.MeshStandardMaterial({ color: greyHex });
-                const matN = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("N", greyStr, 128, 256) });
-                const matS = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("S", greyStr, 128, 256) });
+                const matGrey = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+                const matN = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("N", "#1e293b", 128, 256) });
+                const matS = new THREE.MeshStandardMaterial({ map: this.createLabelTexture("S", "#1e293b", 128, 256) });
 
                 const magL = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matN, matN]);
                 magL.position.x = -0.95; 
@@ -468,32 +464,39 @@
 
                 // Gas Volumes
                 const gasGeo = new THREE.CylinderGeometry(1.52, 1.52, 1, 32);
+                
                 const gasLMat = new THREE.MeshStandardMaterial({ 
-                    color: 0xffffff, emissive: 0xff0000, emissiveIntensity: 0.8,
-                    transparent: true, opacity: 0.6, depthWrite: false
+                    color: 0xffffff, 
+                    emissive: 0xff0000,
+                    emissiveIntensity: 0.8,
+                    transparent: true, 
+                    opacity: 0.6,
+                    depthWrite: false
                 });
                 this.gasL = new THREE.Mesh(gasGeo, gasLMat);
                 this.gasL.rotation.z = Math.PI / 2;
                 this.scene.add(this.gasL);
 
                 const gasRMat = new THREE.MeshStandardMaterial({ 
-                    color: 0xffffff, emissive: 0x0000ff, emissiveIntensity: 0.8,
-                    transparent: true, opacity: 0.6, depthWrite: false
+                    color: 0xffffff,
+                    emissive: 0x0000ff,
+                    emissiveIntensity: 0.8,
+                    transparent: true, 
+                    opacity: 0.6,
+                    depthWrite: false
                 });
                 this.gasR = new THREE.Mesh(gasGeo, gasRMat);
                 this.gasR.rotation.z = Math.PI / 2;
                 this.scene.add(this.gasR);
 
-                // Valves & Plates (Now with Eq Pistons)
+                // Valves & Plates
                 this.valves = {};
                 this.valves.leftHot = this.createPlate(-3.5, 3.0, 6.5, 6.0, 0xef4444); 
                 this.valves.rightHot = this.createPlate(3.5, 3.0, 6.5, 6.0, 0xef4444);
                 this.valves.leftCold = this.createPlate(-3.5, -3.0, 4.0, 3.0, 0x3b82f6);
                 this.valves.rightCold = this.createPlate(3.5, -3.0, 4.0, 3.0, 0x3b82f6);
-                
-                this.addSunArrows();
 
-                // AI Unit
+                // AI Unit - Narrow (Width 0.5)
                 const aiMat = new THREE.MeshStandardMaterial({ color: 0x2f4f4f, roughness: 0.4, metalness: 0.7 });
                 const aiBox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.0, 2.0), aiMat);
                 aiBox.position.set(-5.0, 0, 0);
@@ -507,9 +510,10 @@
                 this.scene.add(aiPipe);
                 this.valves.ai = { valve: null, pipe: aiPipe }; 
 
-                // Coil & Wires
+                // Helix Coil
                 const curve = new THREE.CatmullRomCurve3([]);
-                const turns = 10; const length = 6.4;
+                const turns = 10; 
+                const length = 6.4;
                 for (let i = 0; i <= 100; i++) {
                     const t = i / 100;
                     const angle = t * Math.PI * 2 * turns;
@@ -520,22 +524,27 @@
                 const coilMat = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8, roughness: 0.2 });
                 this.scene.add(new THREE.Mesh(coilGeo, coilMat));
 
+                // Wires - Top Entry, Soft Curves
+                // Connect Coil Left Start (-3.2, 1.7, 0) to AI Top (-5.0, 1.0, 0)
                 const wireLPath = new THREE.CatmullRomCurve3([
                     new THREE.Vector3(-3.2, 1.7, 0),
-                    new THREE.Vector3(-3.5, 2.0, 0),
+                    new THREE.Vector3(-3.5, 2.2, 0), // Arc up
                     new THREE.Vector3(-4.5, 2.0, 0),
-                    new THREE.Vector3(-5.0, 1.0, 0)
+                    new THREE.Vector3(-5.0, 1.0, 0)  // Drop into top
                 ]);
-                this.scene.add(new THREE.Mesh(new THREE.TubeGeometry(wireLPath, 32, 0.05, 8, false), coilMat));
+                const wireLGeo = new THREE.TubeGeometry(wireLPath, 32, 0.05, 8, false);
+                this.scene.add(new THREE.Mesh(wireLGeo, coilMat));
 
+                // Connect Coil Right End (3.2, 1.7, 0) to AI Top
                 const wireRPath = new THREE.CatmullRomCurve3([
                     new THREE.Vector3(3.2, 1.7, 0),
-                    new THREE.Vector3(3.5, 2.3, 0),
-                    new THREE.Vector3(0, 2.3, 0),
+                    new THREE.Vector3(3.5, 2.3, 0), // Up
+                    new THREE.Vector3(0, 2.3, 0),   // Across Top
                     new THREE.Vector3(-4.5, 2.3, 0),
-                    new THREE.Vector3(-5.0, 1.0, 0)
+                    new THREE.Vector3(-5.0, 1.0, 0) // Drop into top
                 ]);
-                this.scene.add(new THREE.Mesh(new THREE.TubeGeometry(wireRPath, 64, 0.05, 8, false), coilMat));
+                const wireRGeo = new THREE.TubeGeometry(wireRPath, 64, 0.05, 8, false);
+                this.scene.add(new THREE.Mesh(wireRGeo, coilMat));
             }
 
             setV(obj, isOpen) {
@@ -551,6 +560,7 @@
             }
 
             updateColor(mesh, ratio) {
+                // 0 = Blue, 1 = Red
                 const c1 = new THREE.Color(0x3b82f6);
                 const c2 = new THREE.Color(0xef4444);
                 mesh.material.emissive.lerpColors(c1, c2, ratio);
@@ -576,34 +586,56 @@
                 this.gasR.scale.y = lenR;
                 this.gasR.position.x = 4.0 - (lenR / 2);
 
+                // Colors
                 this.updateColor(this.gasL, state.colorL);
                 this.updateColor(this.gasR, state.colorR);
 
+                // Valves
                 this.setV(this.valves.leftHot, state.vLeftHot);
                 this.setV(this.valves.leftCold, state.vLeftCold);
                 this.setV(this.valves.rightHot, state.vRightHot);
                 this.setV(this.valves.rightCold, state.vRightCold);
                 this.setV(this.valves.ai, state.vAI);
 
-                // Update Equalizer Pistons - Synchronized with Main Piston
-                const maxPiston = 2.4;
-                const ratio = state.pistonPos / maxPiston; // -1 to 1
+                // Animate Equalizer Pistons (Kinematic Sync)
+                // Left Side Pistons (Hot & Cold): Move away when piston moves Left (Neg)
+                // Right Side Pistons (Hot & Cold): Move towards when piston moves Left (Neg)
+                // Piston Range +/- 2.4. 
+                // Eq Piston Range +/- 0.25 within housing.
+                
+                const eqRange = 0.25; 
+                const normPos = state.pistonPos / 2.4; // -1 to 1
 
-                [this.valves.leftHot, this.valves.leftCold, this.valves.rightHot, this.valves.rightCold].forEach(v => {
-                    if (!v || !v.eqPiston) return;
-                    
-                    const limit = (v.housingLen / 2) - 0.1;
-                    let targetRelY = 0;
+                // Left Side: If Piston is Left (-1), Eq Piston is Up/Out (+1)
+                const leftEqPos = -normPos * eqRange;
+                
+                // Right Side: If Piston is Right (1), Eq Piston is Up/Out (+1)
+                const rightEqPos = normPos * eqRange;
 
-                    if (v.isLeft) {
-                        targetRelY = v.isTop ? (-ratio * limit) : (ratio * limit);
-                    } else {
-                        targetRelY = v.isTop ? (ratio * limit) : (-ratio * limit);
-                    }
-                    
-                    const targetY = v.housingY + targetRelY; 
-                    v.eqPiston.position.y += (targetY - v.eqPiston.position.y) * 0.1;
-                });
+                // Update Left Hot
+                this.valves.leftHot.eqPiston.position.y = this.valves.leftHot.housingY + (leftEqPos);
+                
+                // Update Left Cold (Note: HousingY is negative, "Away" means more negative?)
+                // Actually "Away from cylinder" means towards the plate.
+                // For Hot (Top), Away = +Y. For Cold (Bottom), Away = -Y.
+                
+                // Let's refine logic:
+                // Main Piston Moves Left -> Left Gas compresses -> Pressure Rise -> Eq Piston pushed Away.
+                // So if PistonPos < 0 (Left), Left Eq Pistons move Away.
+                // Hot (Top): Y increases. Cold (Bottom): Y decreases.
+                
+                // Left Hot: housingY + (-normPos * eqRange) (If norm -1, add +range -> Up/Away)
+                this.valves.leftHot.eqPiston.position.y = this.valves.leftHot.housingY + (leftEqPos);
+                
+                // Left Cold: housingY - (leftEqPos) (If norm -1, sub +range -> Down/Away)
+                this.valves.leftCold.eqPiston.position.y = this.valves.leftCold.housingY - (leftEqPos);
+
+                // Right Hot: housingY + (rightEqPos) (If norm 1, add +range -> Up/Away)
+                this.valves.rightHot.eqPiston.position.y = this.valves.rightHot.housingY + (rightEqPos);
+
+                // Right Cold: housingY - (rightEqPos)
+                this.valves.rightCold.eqPiston.position.y = this.valves.rightCold.housingY - (rightEqPos);
+
 
                 this.renderer.render(this.scene, this.camera);
                 this.updateUI(state);
@@ -653,6 +685,7 @@
             
             function toggleChat() {
                 chatContent.classList.toggle('hidden');
+                // Change icon
                 const isHidden = chatContent.classList.contains('hidden');
                 chatToggleBtn.innerHTML = isHidden 
                     ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>'
