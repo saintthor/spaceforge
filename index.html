@@ -368,9 +368,12 @@
 
                 const isTop = y > 0;
                 const surfaceY = isTop ? (y - boxH/2) : (y + boxH/2);
-                const cylSurfaceY = isTop ? 1.6 : -1.6;
-                const pipeLen = Math.abs(surfaceY - cylSurfaceY) + 0.1; 
-                const pipeY = (surfaceY + cylSurfaceY) / 2;
+                
+                // Penetrate into cylinder (Radius 1.6 -> Penetrate to 1.0)
+                const innerY = isTop ? 1.0 : -1.0;
+                
+                const pipeLen = Math.abs(surfaceY - innerY); 
+                const pipeY = (surfaceY + innerY) / 2;
 
                 // --- 1. Main Gas Pipe (Shifted Z = -1.2) ---
                 const pipeMat = new THREE.MeshStandardMaterial({ color: color });
@@ -383,7 +386,6 @@
                 const housingLen = pipeLen * 0.5; // Thicker section length
                 const segmentLen = (pipeLen - housingLen) / 2;
                 
-                // Group to hold eq parts? No, simple absolute positioning.
                 // Thicker Glass Housing
                 const housingGeo = new THREE.CylinderGeometry(0.6, 0.6, housingLen, 16);
                 const housingMat = new THREE.MeshPhongMaterial({ 
@@ -393,7 +395,7 @@
                 housing.position.set(x, pipeY, 1.2);
                 this.scene.add(housing);
 
-                // Thin connecting segments (Top/Bottom or Bottom/Top)
+                // Thin connecting segments
                 const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), pipeMat);
                 const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), pipeMat);
                 
@@ -411,7 +413,7 @@
                 eqPiston.position.set(x, pipeY, 1.2); // Start Center
                 this.scene.add(eqPiston);
 
-                return { plate, pipe, eqPiston, housingLen, pipeY, isTop };
+                return { plate, pipe, eqPiston, housingLen, pipeY, isTop, isLeft: x < 0 };
             }
 
             initMeshes() {
@@ -540,44 +542,6 @@
                 mesh.material.emissive.lerpColors(c1, c2, ratio);
             }
 
-            // Move Eq Piston towards lower pressure
-            // If cyl pressure < source pressure: Move Piston Towards Cylinder (Inward)
-            // If cyl pressure > source pressure: Move Piston Towards Source (Outward)
-            updateEqPiston(valveObj, cylPressure, sourcePressure) {
-                if (!valveObj || !valveObj.eqPiston) return;
-                
-                // Pressure diff
-                const dP = cylPressure - sourcePressure;
-                
-                // isTop (Hot): Y > 0. PipeY is center. 
-                // Towards Cylinder = Down (negative Y relative to PipeY)
-                // Towards Source = Up (positive Y relative to PipeY)
-                // If dP < 0 (Cyl < Source), move towards Cylinder (Down).
-                
-                // Housing limit
-                const limit = (valveObj.housingLen / 2) - 0.1;
-                
-                let targetY = 0;
-                // Gain factor for movement visual
-                const gain = 0.5;
-
-                if (valveObj.isTop) {
-                    // Hot: Source is Up. Cyl is Down.
-                    // High P in Source (approx 100).
-                    // If Cyl P is low (dP < 0), piston pushed Down (negative).
-                    targetY = Math.max(-limit, Math.min(limit, dP * gain));
-                } else {
-                    // Cold: Source is Down. Cyl is Up.
-                    // Low P in Sink (approx 10).
-                    // If Cyl P is high (dP > 0), piston pushed Down (towards Source, negative).
-                    // If Cyl P < Sink (dP < 0), piston pushed Up (towards Cyl, positive).
-                    targetY = Math.max(-limit, Math.min(limit, -dP * gain));
-                }
-                
-                // Smooth movement
-                valveObj.eqPiston.position.y += ( (valveObj.pipeY + targetY) - valveObj.eqPiston.position.y ) * 0.1;
-            }
-
             animate() {
                 requestAnimationFrame(() => this.animate());
                 
@@ -607,17 +571,42 @@
                 this.setV(this.valves.rightCold, state.vRightCold);
                 this.setV(this.valves.ai, state.vAI);
 
-                // Update Equalizer Pistons
-                // Left Chamber Pressure: state.pressureL
-                // Right Chamber Pressure: state.pressureR
-                // Hot Source P ~ 60, Cold Sink P ~ 10 (Scaled for visuals)
-                const P_HOT = 60; 
-                const P_COLD = 10;
+                // Update Equalizer Pistons - Synchronized with Main Piston
+                // Main Piston moves towards side -> Eq Pistons move Away (Outward/Expanded)
+                
+                const maxPiston = 2.4;
+                const ratio = state.pistonPos / maxPiston; // -1 to 1
 
-                this.updateEqPiston(this.valves.leftHot, state.pressureL, P_HOT);
-                this.updateEqPiston(this.valves.leftCold, state.pressureL, P_COLD);
-                this.updateEqPiston(this.valves.rightHot, state.pressureR, P_HOT);
-                this.updateEqPiston(this.valves.rightCold, state.pressureR, P_COLD);
+                [this.valves.leftHot, this.valves.leftCold, this.valves.rightHot, this.valves.rightCold].forEach(v => {
+                    if (!v || !v.eqPiston) return;
+                    
+                    const limit = (v.housingLen / 2) - 0.1;
+                    let targetRelY = 0;
+
+                    // Logic: 
+                    // Left (-2.4): Piston moves Left. Left Eqs move Away. Right Eqs move Towards.
+                    // Away for Top (Hot) = Up (+Y). Away for Bottom (Cold) = Down (-Y).
+                    
+                    if (v.isLeft) {
+                        // Left Side
+                        // Ratio -1 -> Away. 
+                        // Top: Away is +. Formula: -ratio*limit (-(-1)=1).
+                        // Bottom: Away is -. Formula: ratio*limit (-1=-1).
+                        targetRelY = v.isTop ? (-ratio * limit) : (ratio * limit);
+                    } else {
+                        // Right Side
+                        // Ratio -1 -> Towards.
+                        // Top: Towards is -. Formula: ratio*limit (-1=-1).
+                        // Bottom: Towards is +. Formula: -ratio*limit (-(-1)=1).
+                        // Ratio +1 -> Away.
+                        // Top: Away is +. Formula: ratio*limit (1=1).
+                        // Bottom: Away is -. Formula: -ratio*limit (-1=-1).
+                        targetRelY = v.isTop ? (ratio * limit) : (-ratio * limit);
+                    }
+                    
+                    const targetY = v.pipeY + targetRelY;
+                    v.eqPiston.position.y += (targetY - v.eqPiston.position.y) * 0.1;
+                });
 
                 this.renderer.render(this.scene, this.camera);
                 this.updateUI(state);
