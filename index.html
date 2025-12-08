@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.14</title>
+    <title>Solar Carnot AI Server Designer v0.9.16</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -42,7 +42,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.14...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.16...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -53,16 +53,18 @@
     <div class="absolute top-0 left-0 w-full h-full pointer-events-none p-2 flex flex-col justify-between">
         
         <!-- Top Row -->
-        <div class="flex justify-end items-start pointer-events-auto w-full">
+        <div class="flex justify-end items-start pointer-events-none w-full">
             <!-- Chat Interface (Top Right) -->
-            <div id="chat-panel" class="panel p-0 rounded-lg w-72 flex flex-col origin-top-right transform scale-90 transition-all">
+            <div id="chat-panel" class="panel pointer-events-auto p-0 rounded-lg w-72 flex flex-col origin-top-right transform scale-90 transition-all">
                 <div class="p-2 border-b border-slate-200 bg-slate-50 flex justify-between items-center cursor-pointer" id="chat-header">
                     <span class="font-bold text-xs">Gemini Engineer</span>
                     <button id="chat-toggle" class="text-slate-500 hover:text-slate-800 focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <!-- Default to Expand Icon (since collapsed by default) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
                     </button>
                 </div>
-                <div id="chat-content" class="flex flex-col h-[300px] transition-all">
+                <!-- Hidden by default -->
+                <div id="chat-content" class="flex flex-col h-[300px] transition-all hidden">
                     <div id="chat-history" class="flex-1 overflow-y-auto p-2 space-y-2 bg-white text-xs">
                         <div class="flex items-start gap-2">
                             <div class="bg-blue-100 p-2 rounded-lg rounded-tl-none text-slate-800">
@@ -82,9 +84,9 @@
         </div>
 
         <!-- Bottom Row -->
-        <div class="flex justify-between items-end pointer-events-auto w-full">
+        <div class="flex justify-between items-end pointer-events-none w-full">
             <!-- Control Panel (Bottom Left) -->
-            <div class="panel p-3 rounded-lg w-64 origin-bottom-left transform scale-90">
+            <div class="panel pointer-events-auto p-3 rounded-lg w-64 origin-bottom-left transform scale-90">
                 <h3 class="font-bold text-xs mb-2 text-slate-700">Controls</h3>
                 
                 <div class="space-y-3">
@@ -118,9 +120,9 @@
             </div>
 
             <!-- Server Stats (Bottom Right) -->
-            <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
+            <div class="panel pointer-events-auto p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.14</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.16</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -376,10 +378,10 @@
                 const pipeY = (surfaceY + innerY) / 2;
 
                 const greyHex = 0x94a3b8;
-                const greyMat = new THREE.MeshStandardMaterial({ color: greyHex });
-
+                // Changed lightHex to White
+                const lightHex = 0xffffff; 
+                
                 // --- 1. Main Gas Pipe (Shifted Z = -1.2) ---
-                // Reduced diameter from 0.35 to 0.175 (Half)
                 const pipeMat = new THREE.MeshStandardMaterial({ color: greyHex });
                 const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, pipeLen), pipeMat);
                 pipe.position.set(x, pipeY, -1.2);
@@ -387,14 +389,10 @@
                 this.scene.add(pipe);
 
                 // --- 2. Equalizer Pipe Assembly (Shifted Z = +1.2) ---
-                // Move Housing Outwards (Towards Plate), away from Cylinder
-                // Cyl Surface is ~1.6. Plate Surface is ~3.0. Gap center ~2.3.
-                // Previous pipeY was mid (~1.75).
-                
                 const cylOuterY = isTop ? 1.6 : -1.6;
-                const housingY = (surfaceY + cylOuterY) / 2; // Center in the external gap
+                const housingY = (surfaceY + cylOuterY) / 2; 
                 const gapSize = Math.abs(surfaceY - cylOuterY);
-                const housingLen = gapSize * 0.8; // Fit mostly within gap
+                const housingLen = gapSize * 0.8; 
 
                 // Thicker Glass Housing
                 const housingGeo = new THREE.CylinderGeometry(0.6, 0.6, housingLen, 16);
@@ -405,18 +403,20 @@
                 housing.position.set(x, housingY, 1.2);
                 this.scene.add(housing);
 
+                // Thin Segments - NOW WHITE COLORED
+                const segmentMat = new THREE.MeshStandardMaterial({ color: lightHex, roughness: 0.1, metalness: 0.1 });
+
                 // Upper Segment (Housing Top to Plate Surface)
-                // Housing Top Y
                 const housingOuterY = isTop ? (housingY + housingLen/2) : (housingY - housingLen/2);
                 const upperDist = Math.abs(surfaceY - housingOuterY);
-                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, upperDist), greyMat);
+                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, upperDist), segmentMat);
                 seg1.position.set(x, (surfaceY + housingOuterY)/2, 1.2);
                 this.scene.add(seg1);
 
                 // Lower Segment (Housing Bottom to Deep Cylinder Inner)
                 const housingInnerY = isTop ? (housingY - housingLen/2) : (housingY + housingLen/2);
                 const lowerDist = Math.abs(innerY - housingInnerY);
-                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, lowerDist), greyMat);
+                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, lowerDist), segmentMat);
                 seg2.position.set(x, (innerY + housingInnerY)/2, 1.2);
                 this.scene.add(seg2);
 
@@ -586,8 +586,6 @@
                 this.setV(this.valves.ai, state.vAI);
 
                 // Update Equalizer Pistons - Synchronized with Main Piston
-                // Center oscillation around v.housingY (new center)
-                
                 const maxPiston = 2.4;
                 const ratio = state.pistonPos / maxPiston; // -1 to 1
 
@@ -598,14 +596,12 @@
                     let targetRelY = 0;
 
                     if (v.isLeft) {
-                        // Left Side: Piston Left -> Eqs Away
                         targetRelY = v.isTop ? (-ratio * limit) : (ratio * limit);
                     } else {
-                        // Right Side: Piston Right -> Eqs Away
                         targetRelY = v.isTop ? (ratio * limit) : (-ratio * limit);
                     }
                     
-                    const targetY = v.housingY + targetRelY; // Use housingY as anchor
+                    const targetY = v.housingY + targetRelY; 
                     v.eqPiston.position.y += (targetY - v.eqPiston.position.y) * 0.1;
                 });
 
@@ -657,7 +653,6 @@
             
             function toggleChat() {
                 chatContent.classList.toggle('hidden');
-                // Change icon
                 const isHidden = chatContent.classList.contains('hidden');
                 chatToggleBtn.innerHTML = isHidden 
                     ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>'
