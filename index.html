@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Carnot AI Server Designer v0.8 (Restored)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f8fafc; color: #1e293b; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        .panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            color: #1e293b;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover { background-color: #2563eb; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">RESTORING v0.8...</div>
+        <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none p-4 flex flex-col justify-between">
+        <!-- Header & Stats -->
+        <div class="flex justify-between items-start pointer-events-auto">
+            <div class="panel p-4 rounded-xl w-80">
+                <h1 class="text-xl font-bold mb-1 text-slate-800">Solar Carnot AI Server</h1>
+                <div class="text-xs text-slate-500 mb-4">Space-Based Compute Infrastructure v0.8</div>
+                
+                <div class="space-y-3 font-mono text-sm">
+                    <div class="flex justify-between border-b border-slate-200 pb-1">
+                        <span>Cycle Phase</span>
+                        <span id="phase-val" class="font-bold text-blue-600">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Piston Velocity</span>
+                        <span id="velocity-val" class="font-bold">0.0 m/s</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Chamber Press.</span>
+                        <span id="pressure-val" class="font-bold">0.0 kPa</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Power Output</span>
+                        <span id="power-val" class="font-bold text-green-600">0.0 kW</span>
+                    </div>
+                    <div class="flex justify-between pt-2 border-t border-slate-200">
+                        <span>Efficiency</span>
+                        <span id="efficiency-val" class="font-bold">--%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="panel p-4 rounded-xl">
+                <h3 class="font-bold text-sm mb-2 text-slate-700">System Status</h3>
+                <div class="flex gap-4 text-xs">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span>Hot Gas</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span>Cold Gas</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-gradient-to-r from-red-500 to-blue-500"></div>
+                        <span>Adiabatic</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                        <span>Valve Open</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls & Chat -->
+        <div class="flex justify-between items-end pointer-events-auto gap-4">
+            <!-- Control Panel -->
+            <div class="panel p-4 rounded-xl w-80">
+                <h3 class="font-bold text-sm mb-3 text-slate-700">Engineering Controls</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>Source Temp (Sun)</span>
+                            <span id="temp-hot-val">600 K</span>
+                        </div>
+                        <input type="range" id="slider-hot" min="300" max="750" value="600" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>Sink Temp (Space)</span>
+                            <span id="temp-cold-val">50 K</span>
+                        </div>
+                        <input type="range" id="slider-cold" min="20" max="200" value="50" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span>Cycle Speed</span>
+                            <span id="speed-val">1.0x</span>
+                        </div>
+                        <input type="range" id="slider-speed" min="0.1" max="3.0" step="0.1" value="1.0" 
+                               class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="panel p-0 rounded-xl w-96 flex flex-col h-[400px] overflow-hidden">
+                <div class="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                    <span class="font-bold text-sm">Gemini Engineer</span>
+                    <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">AI Assistant</span>
+                </div>
+                <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
+                    <div class="flex items-start gap-2">
+                        <div class="bg-blue-100 p-2 rounded-lg rounded-tl-none text-xs text-slate-800 max-w-[90%]">
+                            System restored to version 0.8 state.
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 border-t border-slate-200 bg-slate-50 flex gap-2">
+                    <input type="text" id="chat-input" placeholder="Ask about efficiency..." 
+                           class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+                    <button id="send-btn" class="btn-primary rounded-lg px-3 py-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Physics Engine ---
+        class PhysicsEngine {
+            constructor() {
+                this.time = 0;
+                this.speed = 1.0;
+                this.sourceTemp = 600;
+                this.sinkTemp = 50;
+                
+                this.state = {
+                    pistonPos: 0, // -2.4 to 2.4
+                    cyclePos: 0,  // 0 to 4 (Phase)
+                    pressureL: 100,
+                    pressureR: 100,
+                    tempL: 300,
+                    tempR: 300,
+                    
+                    // Valves
+                    vLeftHot: false,
+                    vLeftCold: false,
+                    vRightHot: false,
+                    vRightCold: false,
+                    vAI: false, // AI Connection
+                    
+                    // Phases for UI
+                    phase: 'Initialization',
+                    
+                    // Visual Colors
+                    colorL: 0, // 0=Blue/Green, 1=Red
+                    colorR: 0
+                };
+            }
+
+            update(dt) {
+                // Cosine Kinematics for perfect cyclic motion
+                // Cycle: 0->4
+                // 0-1: Iso Exp (L Hot, R Cold)
+                // 1-2: Adia Exp (All Closed)
+                // 2-3: Iso Comp (L Cold, R Hot)
+                // 3-4: Adia Comp (All Closed)
+                
+                this.time += dt * this.speed;
+                const cycleT = (this.time % 4); // 0 to 4
+                this.state.cyclePos = cycleT;
+
+                // Piston Position: Cosine wave from -1 to 1 (scaled to 2.4)
+                // At t=0, Piston is at -1 (Left), moving Right
+                // At t=2, Piston is at 1 (Right), moving Left
+                const normPos = -Math.cos(cycleT * Math.PI / 2); 
+                this.state.pistonPos = normPos * 2.4;
+
+                // Valve Logic & Phase
+                // 4 Phases
+                if (cycleT < 1.0) {
+                    // Phase 1: Expansion (Left Heating, Right Cooling)
+                    this.state.phase = "Isothermal Exp.";
+                    this.state.vLeftHot = true; this.state.vLeftCold = false;
+                    this.state.vRightHot = false; this.state.vRightCold = true;
+                    
+                    this.state.tempL = this.sourceTemp;
+                    this.state.tempR = this.sinkTemp;
+                    this.state.colorL = 1.0; // Red
+                    this.state.colorR = 0.0; // Blue
+                } 
+                else if (cycleT < 2.0) {
+                    // Phase 2: Adiabatic Expansion
+                    this.state.phase = "Adiabatic Exp.";
+                    this.state.vLeftHot = false; this.state.vLeftCold = false;
+                    this.state.vRightHot = false; this.state.vRightCold = false;
+
+                    // Interpolate Temps/Color
+                    const p = cycleT - 1.0;
+                    this.state.tempL = this.sourceTemp * (1-p) + this.sinkTemp * p; // Cooling down
+                    this.state.tempR = this.sinkTemp * (1-p) + this.sourceTemp * p; // Heating up (compression)
+                    this.state.colorL = 1.0 - p; // Red -> Blue
+                    this.state.colorR = p;       // Blue -> Red
+                }
+                else if (cycleT < 3.0) {
+                    // Phase 3: Isothermal Compression (Left Cooling, Right Heating)
+                    this.state.phase = "Isothermal Comp.";
+                    this.state.vLeftHot = false; this.state.vLeftCold = true;
+                    this.state.vRightHot = true; this.state.vRightCold = false;
+
+                    this.state.tempL = this.sinkTemp;
+                    this.state.tempR = this.sourceTemp;
+                    this.state.colorL = 0.0; // Blue
+                    this.state.colorR = 1.0; // Red
+                }
+                else {
+                    // Phase 4: Adiabatic Compression
+                    this.state.phase = "Adiabatic Comp.";
+                    this.state.vLeftHot = false; this.state.vLeftCold = false;
+                    this.state.vRightHot = false; this.state.vRightCold = false;
+
+                    const p = cycleT - 3.0;
+                    this.state.tempL = this.sinkTemp * (1-p) + this.sourceTemp * p; // Heating up
+                    this.state.tempR = this.sourceTemp * (1-p) + this.sinkTemp * p; // Cooling down
+                    this.state.colorL = p;       // Blue -> Red
+                    this.state.colorR = 1.0 - p; // Red -> Blue
+                }
+
+                // AI Valve Logic: Open from 1.2 to 2.8
+                this.state.vAI = (cycleT > 1.2 && cycleT < 2.8);
+
+                return this.state;
+            }
+        }
+
+        // --- Visualization ---
+        class EngineVisualizer {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0xf1f5f9); // Light Gray
+                this.scene.fog = new THREE.Fog(0xf1f5f9, 10, 50);
+
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.camera.position.set(0, 4, 14);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.container.appendChild(this.renderer.domElement);
+
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+
+                this.physics = new PhysicsEngine();
+                
+                this.initLights();
+                this.initMeshes();
+                this.animate();
+
+                window.addEventListener('resize', () => this.onResize());
+            }
+
+            initLights() {
+                const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambient);
+
+                const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                sunLight.position.set(5, 10, 5);
+                sunLight.castShadow = true;
+                sunLight.shadow.mapSize.width = 2048;
+                sunLight.shadow.mapSize.height = 2048;
+                this.scene.add(sunLight);
+
+                const blueLight = new THREE.PointLight(0x3b82f6, 0.5);
+                blueLight.position.set(-5, -2, 2);
+                this.scene.add(blueLight);
+            }
+
+            createLabelTexture(text, colorStr, width, height) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                // Background
+                ctx.fillStyle = '#64748b'; // Steel Grey
+                ctx.fillRect(0, 0, width, height);
+                
+                // Text
+                ctx.fillStyle = 'white';
+                ctx.font = `bold ${width/1.5}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, width/2, height/2);
+                
+                const tex = new THREE.CanvasTexture(canvas);
+                return tex;
+            }
+
+            createPlate(x, y, width, depth, color) {
+                // RESTORED: Standard color plates (Red/Blue)
+                const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
+                const boxH = 0.32; // Thickness 1/10th cylinder diameter
+                
+                const plateGeo = new THREE.BoxGeometry(width, boxH, depth);
+                const plate = new THREE.Mesh(plateGeo, mat);
+                plate.position.set(x, y, 0);
+                plate.castShadow = true;
+                plate.receiveShadow = true;
+                this.scene.add(plate);
+
+                // Pipe logic
+                const isTop = y > 0;
+                const surfaceY = isTop ? (y - boxH/2) : (y + boxH/2);
+                const cylSurfaceY = isTop ? 1.6 : -1.6;
+                const pipeLen = Math.abs(surfaceY - cylSurfaceY) + 0.1; 
+                const pipeY = (surfaceY + cylSurfaceY) / 2;
+
+                // RESTORED: Pipe matches plate color (inactive), glows Green (active)
+                const pipeMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });
+                const pipeGeo = new THREE.CylinderGeometry(0.35, 0.35, pipeLen);
+                const pipe = new THREE.Mesh(pipeGeo, pipeMat);
+                pipe.position.set(x, pipeY, 0);
+                
+                // Store base color for toggling
+                pipe.userData.baseColor = color;
+                
+                this.scene.add(pipe);
+
+                return { plate, pipe, valve: null };
+            }
+
+            initMeshes() {
+                // --- Glass Cylinder ---
+                const glassMat = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: 0.3, 
+                    shininess: 90,
+                    side: THREE.DoubleSide
+                });
+                const cylGeo = new THREE.CylinderGeometry(1.6, 1.6, 8.0, 32);
+                const cylinder = new THREE.Mesh(cylGeo, glassMat);
+                cylinder.rotation.z = Math.PI / 2;
+                cylinder.receiveShadow = true;
+                this.scene.add(cylinder);
+
+                // --- Piston Assembly ---
+                this.pistonGroup = new THREE.Group();
+                
+                // 1. Main Body (Thick, fills cylinder)
+                const pistonMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x94a3b8, // Metallic Grey
+                    roughness: 0.3, 
+                    metalness: 0.8 
+                });
+                const bodyGeo = new THREE.CylinderGeometry(1.5, 1.5, 1.5, 32);
+                const body = new THREE.Mesh(bodyGeo, pistonMat);
+                body.rotation.z = Math.PI / 2;
+                this.pistonGroup.add(body);
+
+                // 2. Magnets (Internal Bars) - Steel Grey
+                const magGeo = new THREE.BoxGeometry(0.4, 1.8, 0.8);
+                
+                // Textures
+                const texN = this.createLabelTexture("N", "#64748b", 128, 256);
+                const texS = this.createLabelTexture("S", "#64748b", 128, 256);
+                const matGrey = new THREE.MeshStandardMaterial({ color: 0x64748b });
+                const matN = new THREE.MeshStandardMaterial({ map: texN });
+                const matS = new THREE.MeshStandardMaterial({ map: texS });
+
+                // Left Magnet (N)
+                const magL = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matN, matN]);
+                magL.position.x = -0.95; 
+                this.pistonGroup.add(magL);
+
+                // Right Magnet (S)
+                const magR = new THREE.Mesh(magGeo, [matGrey, matGrey, matGrey, matGrey, matS, matS]);
+                magR.position.x = 0.95;
+                this.pistonGroup.add(magR);
+
+                this.scene.add(this.pistonGroup);
+
+                // --- Gas Volumes ---
+                // Left Gas
+                const gasLMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5, depthWrite: false });
+                this.gasL = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.55, 1, 32), gasLMat);
+                this.gasL.rotation.z = Math.PI / 2;
+                this.scene.add(this.gasL);
+
+                // Right Gas
+                const gasRMat = new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5, depthWrite: false });
+                this.gasR = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.55, 1, 32), gasRMat);
+                this.gasR.rotation.z = Math.PI / 2;
+                this.scene.add(this.gasR);
+
+                // --- Valves & Chambers ---
+                this.valves = {};
+                
+                // RESTORED: Hot Plates (Red)
+                this.valves.leftHot = this.createPlate(-3.5, 3.0, 6.5, 6.0, 0xef4444); 
+                this.valves.rightHot = this.createPlate(3.5, 3.0, 6.5, 6.0, 0xef4444);
+
+                // RESTORED: Cold Plates (Blue)
+                this.valves.leftCold = this.createPlate(-3.5, -3.0, 4.0, 3.0, 0x3b82f6);
+                this.valves.rightCold = this.createPlate(3.5, -3.0, 4.0, 3.0, 0x3b82f6);
+
+                // --- AI Unit ---
+                // Static Metallic Box
+                const aiColor = 0x2f4f4f;
+                const aiMat = new THREE.MeshStandardMaterial({ 
+                    color: aiColor, // Dark metallic slate
+                    roughness: 0.4,
+                    metalness: 0.7
+                });
+                const aiBox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.0, 2.0), aiMat);
+                aiBox.position.set(-5.0, 0, 0); // Outside cylinder
+                this.scene.add(aiBox);
+
+                // Connector Pipe (Glows Green, otherwise Steel Grey)
+                const aiPipeBaseColor = 0x64748b;
+                const aiPipeMat = new THREE.MeshStandardMaterial({ color: aiPipeBaseColor });
+                const aiPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0), aiPipeMat);
+                aiPipe.rotation.z = Math.PI / 2;
+                aiPipe.position.set(-4.5, 0, 0); 
+                aiPipe.userData.baseColor = aiPipeBaseColor;
+                this.scene.add(aiPipe);
+                
+                this.valves.ai = { valve: null, pipe: aiPipe }; 
+
+                // --- Coils (Helix) ---
+                const curve = new THREE.CatmullRomCurve3([]);
+                const turns = 10; 
+                const radius = 1.7;
+                const length = 6.4;
+                for (let i = 0; i <= 100; i++) {
+                    const t = i / 100;
+                    const angle = t * Math.PI * 2 * turns;
+                    const x = (t - 0.5) * length;
+                    curve.points.push(new THREE.Vector3(x, Math.cos(angle)*radius, Math.sin(angle)*radius));
+                }
+                const coilGeo = new THREE.TubeGeometry(curve, 200, 0.05, 8, false);
+                const coilMat = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.8, roughness: 0.2 });
+                const coil = new THREE.Mesh(coilGeo, coilMat);
+                this.scene.add(coil);
+
+                // --- Wires ---
+                const wireMat = new THREE.LineBasicMaterial({ color: 0x333333 });
+                // Left lead
+                const wireLGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-3.2, 1.7, 0), new THREE.Vector3(-5.0, 1.0, 0)
+                ]);
+                this.scene.add(new THREE.Line(wireLGeo, wireMat));
+                // Right return bus
+                const wireRGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(3.2, 1.7, 0), new THREE.Vector3(3.2, 2.0, 0),
+                    new THREE.Vector3(-5.0, 2.0, 0), new THREE.Vector3(-5.0, 1.0, 0)
+                ]);
+                this.scene.add(new THREE.Line(wireRGeo, wireMat));
+            }
+
+            setV(obj, isOpen) {
+                if (!obj || !obj.pipe) return;
+                
+                // Color: Green if Open, Base Color if Closed
+                const baseColor = obj.pipe.userData.baseColor || 0x94a3b8;
+                const color = isOpen ? 0x22c55e : baseColor;
+                const emissive = isOpen ? 0x22c55e : 0x000000;
+                const intensity = isOpen ? 0.6 : 0;
+
+                // Update Pipe
+                obj.pipe.material.color.setHex(color);
+                obj.pipe.material.emissive.setHex(emissive);
+                obj.pipe.material.emissiveIntensity = intensity;
+            }
+
+            updateColor(mesh, ratio) {
+                // 0 = Blue (0x3b82f6), 1 = Red (0xef4444)
+                const c1 = new THREE.Color(0x3b82f6);
+                const c2 = new THREE.Color(0xef4444);
+                mesh.material.color.lerpColors(c1, c2, ratio);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                const dt = 0.016;
+                const state = this.physics.update(dt);
+
+                // Piston Movement
+                this.pistonGroup.position.x = state.pistonPos;
+                this.controls.update();
+
+                // Gas Dynamics
+                const pistonLeftFace = state.pistonPos - 0.75; 
+                const lenL = Math.max(0.01, pistonLeftFace - (-4.0));
+                this.gasL.scale.y = lenL;
+                this.gasL.position.x = -4.0 + (lenL / 2);
+
+                const pistonRightFace = state.pistonPos + 0.75;
+                const lenR = Math.max(0.01, 4.0 - pistonRightFace);
+                this.gasR.scale.y = lenR;
+                this.gasR.position.x = 4.0 - (lenR / 2);
+
+                // Colors
+                this.updateColor(this.gasL, state.colorL);
+                this.updateColor(this.gasR, state.colorR);
+
+                // Valves
+                this.setV(this.valves.leftHot, state.vLeftHot);
+                this.setV(this.valves.leftCold, state.vLeftCold);
+                this.setV(this.valves.rightHot, state.vRightHot);
+                this.setV(this.valves.rightCold, state.vRightCold);
+                this.setV(this.valves.ai, state.vAI);
+
+                this.renderer.render(this.scene, this.camera);
+                this.updateUI(state);
+            }
+
+            updateUI(state) {
+                document.getElementById('phase-val').innerText = state.phase;
+                const vel = Math.abs(Math.sin(state.cyclePos * Math.PI/2)).toFixed(1);
+                document.getElementById('velocity-val').innerText = `${vel} m/s`;
+                const eff = (1 - (this.physics.sinkTemp / this.physics.sourceTemp)) * 100;
+                document.getElementById('efficiency-val').innerText = `${eff.toFixed(1)}%`;
+            }
+
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const visualizer = new EngineVisualizer('canvas-container');
+            document.getElementById('loading').style.display = 'none';
+
+            // Slider Listeners
+            const sHot = document.getElementById('slider-hot');
+            const sCold = document.getElementById('slider-cold');
+            const sSpeed = document.getElementById('slider-speed');
+
+            sHot.addEventListener('input', (e) => {
+                visualizer.physics.sourceTemp = parseFloat(e.target.value);
+                document.getElementById('temp-hot-val').innerText = `${e.target.value} K`;
+            });
+            sCold.addEventListener('input', (e) => {
+                visualizer.physics.sinkTemp = parseFloat(e.target.value);
+                document.getElementById('temp-cold-val').innerText = `${e.target.value} K`;
+            });
+            sSpeed.addEventListener('input', (e) => {
+                visualizer.physics.speed = parseFloat(e.target.value);
+                document.getElementById('speed-val').innerText = `${e.target.value}x`;
+            });
+
+            // Chat & AI Logic
+            const chatInput = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('send-btn');
+            const history = document.getElementById('chat-history');
+
+            async function sendMessage() {
+                const text = chatInput.value.trim();
+                if (!text) return;
+
+                history.innerHTML += `<div class="flex justify-end"><div class="bg-blue-600 text-white p-2 rounded-lg rounded-tr-none text-xs max-w-[90%]">${text}</div></div>`;
+                chatInput.value = '';
+                history.scrollTop = history.scrollHeight;
+
+                try {
+                    const { GoogleGenAI } = await import('https://esm.run/@google/genai');
+                    const apiKey = process.env?.API_KEY || 'DEMO_MODE'; 
+                    const ai = new GoogleGenAI({ apiKey });
+                    
+                    const prompt = `System: You are an expert engineer designing a Solar Carnot Server for space. 
+                    Context: Carnot efficiency is 1 - Tc/Th. Current design has Th=${visualizer.physics.sourceTemp}K, Tc=${visualizer.physics.sinkTemp}K. 
+                    Structure: Dual-chamber cylinder, piston with magnets, helical coil alternator, AI waste heat recycling.
+                    User: ${text}`;
+
+                    const response = await ai.models.generateContent({
+                        model: "gemini-2.5-flash",
+                        contents: prompt
+                    });
+                    
+                    const responseText = response.text;
+                    history.innerHTML += `<div class="flex items-start gap-2"><div class="bg-blue-100 p-2 rounded-lg rounded-tl-none text-xs text-slate-800 max-w-[90%]">${responseText}</div></div>`;
+                } catch (e) {
+                    history.innerHTML += `<div class="flex items-start gap-2"><div class="bg-red-100 p-2 rounded-lg rounded-tl-none text-xs text-red-800 max-w-[90%]">AI Connection Error: ${e.message}</div></div>`;
+                }
+                history.scrollTop = history.scrollHeight;
+            }
+
+            sendBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
+        });
+
+        setTimeout(() => {
+            const loader = document.getElementById('loading');
+            if (loader && loader.style.display !== 'none') {
+                loader.style.display = 'none';
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
