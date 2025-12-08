@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.18</title>
+    <title>Solar Carnot AI Server Designer v0.9.20</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -46,7 +46,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.18...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.20...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -126,7 +126,7 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.18</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.20</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -321,11 +321,12 @@
                 const arrowColor = 0xffff00;
                 const arrowLen = 1.5;
                 const positions = [-5, -2, 2, 5]; // Above Hot Plates (centered at +/- 3.5, width 6.5)
+                const yPos = 5.0; // Lowered to 5.0 per user request
                 
                 positions.forEach(x => {
                     const arrowHelper = new THREE.ArrowHelper(
                         new THREE.Vector3(0, -1, 0),
-                        new THREE.Vector3(x, 5.0, 0),
+                        new THREE.Vector3(x, yPos, 0),
                         arrowLen,
                         arrowColor,
                         0.5,
@@ -419,6 +420,7 @@
                     color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide 
                 });
                 
+                // Use housing material for the entire assembly to be uniform transparent white
                 const housingGeo = new THREE.CylinderGeometry(0.6, 0.6, housingLen, 16);
                 const housing = new THREE.Mesh(housingGeo, housingMat);
                 housing.position.set(x, housingY, -1.2);
@@ -718,7 +720,17 @@
 
                 try {
                     const { GoogleGenAI } = await import('https://esm.run/@google/genai');
-                    const apiKey = process.env?.API_KEY || 'DEMO'; 
+                    // STRICT CHECK: The prompt explicitly forbids generating input fields.
+                    // The API key MUST come from process.env.API_KEY.
+                    // If running purely client-side without a build step/env injection, this will fail safely.
+                    const apiKey = (typeof process !== "undefined" && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
+                    
+                    if (!apiKey) {
+                        history.innerHTML += `<div class="flex items-start gap-2"><div class="bg-red-100 p-2 rounded text-xs text-red-800">Error: API Key missing. Please configure process.env.API_KEY environment variable.</div></div>`;
+                        history.scrollTop = history.scrollHeight;
+                        return;
+                    }
+
                     const ai = new GoogleGenAI({ apiKey });
                     const response = await ai.models.generateContent({
                         model: "gemini-2.5-flash",

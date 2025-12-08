@@ -1,5 +1,4 @@
 {
   "name": "Solar Carnot AI Server Designer",
-  "description": "A design and visualization tool for a space-based AI server powered by a Solar Carnot Heat Engine with waste heat recycling.",
-  "requestFramePermissions": []
+  "description": "A design and visualization tool for a space-based AI server powered by a Solar Carnot Heat Engine with waste heat recycling."
 }
