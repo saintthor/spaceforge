@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Carnot AI Server Designer v0.9.12</title>
+    <title>Solar Carnot AI Server Designer v0.9.13</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
         {
@@ -42,7 +42,7 @@
 <body>
     <!-- Loading Screen -->
     <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center flex-col">
-        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.12...</div>
+        <div class="text-2xl font-bold text-slate-800 animate-pulse">INITIALIZING v0.9.13...</div>
         <div class="mt-4 text-slate-500 text-sm">Loading Physics & Visualization Modules</div>
     </div>
 
@@ -120,7 +120,7 @@
             <!-- Server Stats (Bottom Right) -->
             <div class="panel p-3 rounded-lg w-64 origin-bottom-right transform scale-90">
                 <h1 class="text-lg font-bold mb-1 text-slate-800 leading-tight">Solar Carnot Server</h1>
-                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.12</div>
+                <div class="text-[10px] text-slate-500 mb-2">Space Infrastructure v0.9.13</div>
                 
                 <div class="space-y-2 font-mono text-xs">
                     <div class="flex justify-between border-b border-slate-200 pb-1">
@@ -369,17 +369,22 @@
                 const isTop = y > 0;
                 const surfaceY = isTop ? (y - boxH/2) : (y + boxH/2);
                 
-                // Penetrate into cylinder (Radius 1.6 -> Penetrate to 1.0)
-                const innerY = isTop ? 1.0 : -1.0;
+                // Penetrate deeper into cylinder (Radius 1.6 -> Penetrate to 0.5)
+                // At z=1.2, surface is approx y=1.06, so 0.5 ensures penetration.
+                const innerY = isTop ? 0.5 : -0.5;
                 
                 const pipeLen = Math.abs(surfaceY - innerY); 
                 const pipeY = (surfaceY + innerY) / 2;
 
+                const greyHex = 0x94a3b8;
+                const greyMat = new THREE.MeshStandardMaterial({ color: greyHex });
+
                 // --- 1. Main Gas Pipe (Shifted Z = -1.2) ---
-                const pipeMat = new THREE.MeshStandardMaterial({ color: color });
+                // Default to Grey, only turn Green when active
+                const pipeMat = new THREE.MeshStandardMaterial({ color: greyHex });
                 const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, pipeLen), pipeMat);
                 pipe.position.set(x, pipeY, -1.2);
-                pipe.userData.baseColor = color;
+                pipe.userData.baseColor = greyHex; // Revert to grey when closed
                 this.scene.add(pipe);
 
                 // --- 2. Equalizer Pipe Assembly (Shifted Z = +1.2) ---
@@ -395,9 +400,9 @@
                 housing.position.set(x, pipeY, 1.2);
                 this.scene.add(housing);
 
-                // Thin connecting segments
-                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), pipeMat);
-                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), pipeMat);
+                // Thin connecting segments (Always Grey)
+                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), greyMat);
+                const seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, segmentLen), greyMat);
                 
                 // Calculate segment positions relative to center pipeY
                 const offsetY = (housingLen/2) + (segmentLen/2);
